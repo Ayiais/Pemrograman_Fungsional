@@ -22,17 +22,22 @@ import Control.Applicative
 import System.Environment
 
 -- |Checks the first and last characters of a string for punctuation and removes them
-clean :: [String] -> [String] 
+clean :: [String] -> [String]
 clean [] = []
 clean ([]:xs) = clean xs
 clean ([x]:xs) = if x `elem` alphabet then [x] : clean xs else clean xs
-clean (x:xs) 
-    | badhead && badtail = (tail . init) x : clean xs
-    | badhead = tail x : clean xs
-    | badtail = init x : clean xs
-    | otherwise = x : clean xs
-    where badhead = head x `notElem` alphabet
-          badtail = last x `notElem` alphabet
+clean (x:xs) = case (uncons x, uncons (reverse x)) of
+    (Nothing, _) -> clean xs  -- Handle empty list
+    (_, Nothing) -> clean xs
+    (Just (h, t), Just (l, _)) 
+      | badhead h && badtail l -> cleanString t : clean xs
+      | badhead h              -> t : clean xs
+      | badtail l              -> init x : clean xs
+      | otherwise              -> x : clean xs
+  where
+    badhead c = c `notElem` alphabet
+    badtail c = c `notElem` alphabet
+    cleanString s = L.take (length s - 1) s  -- equivalent to `init`
 
 alphabet = ['a'..'z'] ++ ['A'..'Z'] ++ "'"
                                
@@ -59,13 +64,15 @@ addCount (x:xs) list = case M.lookup x list of
 
 -- |Builds string output from map, calculates proper spacing
 printMap :: Map String Int -> String
-printMap m = M.foldWithKey f id m "" where
+printMap m = M.foldrWithKey f "" m
+  where
     longestkey key = getMaxKey m - length key
     longestval = maximum (map snd $ M.toList m) + getMaxKey m
     linearscale = (longestval `div` 80) + 1
-    f :: String -> Int -> (String -> String) -> String -> String
-    f key val r = r . ((key ++ concat (replicate (longestkey key) " ") ++ "  " ++
-                        replicate (val `div` linearscale) '#' ++ "\n") ++)
+    f key val acc = acc ++
+                    (key ++ concat (replicate (longestkey key) " ") ++ "  " ++
+                     replicate (val `div` linearscale) '#' ++ "\n")
+
 
 -- |Helper function to retrieve the maximum key (largest word) in the map
 getMaxKey:: Map String Int -> Int                  
@@ -84,7 +91,7 @@ main = E.catch toTry handler
 toTry :: IO() 
 toTry = do
   (file:xs) <- getArgs
-  contents <- readFile file
+  contents <- readFile "C:\\Users\\LENOVO\\OneDrive\\Desktop\\project haskell\\wordfreq\\data.txt"
   mapM_ putStrLn $ (sortBy sorter . filter ('#' `elem`) . lines . printMap . toMap) [contents]
 
 -- |Error handler  
